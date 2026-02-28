@@ -439,8 +439,9 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&dest).unwrap(), "fresh");
     }
 
+    // non-routable IP trick is slow on macOS (~60s due to OS SYN retransmit)
     #[test]
-    #[ignore] // non-routable IP trick is slow on macOS (~60s due to OS SYN retransmit)
+    #[cfg_attr(target_os = "macos", ignore)]
     fn test_connect_timeout_returns_error() {
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("file.bin");
