@@ -113,15 +113,20 @@ fn download_url_to_file(url: &str, dest: &Path, config: &DownloadConfig) -> Resu
     for attempt in 0..=config.max_retries {
         match agent.get(url).call() {
             Ok(resp) => {
-                part_file.set_len(0)?;
-                let mut writer = &part_file;
-                let bytes = std::io::copy(&mut resp.into_reader(), &mut writer)
-                    .context("failed streaming response to .part file")?;
-                if bytes == 0 {
-                    last_err = Some(anyhow!("zero-byte response"));
-                } else {
-                    fs::rename(&part_path, dest)?;
-                    return Ok(());
+                let res = (|| -> Result<u64> {
+                    part_file.set_len(0)?;
+                    let mut writer = &part_file;
+                    let bytes = std::io::copy(&mut resp.into_reader(), &mut writer)
+                        .context("failed streaming response to .part file")?;
+                    Ok(bytes)
+                })();
+                match res {
+                    Ok(0) => last_err = Some(anyhow!("zero-byte response")),
+                    Ok(_) => {
+                        fs::rename(&part_path, dest)?;
+                        return Ok(());
+                    },
+                    Err(e) => last_err = Some(e),
                 }
             },
             Err(e) => last_err = Some(anyhow::Error::from(e)),
